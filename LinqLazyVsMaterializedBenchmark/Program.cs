@@ -44,6 +44,25 @@ namespace LinqLazyVsMaterializedBenchmark
         }
 
         [Benchmark]
+        public void StandardLinqSelectWhere()
+        {
+            var top10Ids = new List<int>();
+
+            var linqResults = _source
+                .Where(x => x.Name == "taro")
+                .Select(x => x.Id);
+
+            int count = 0;
+            foreach (var id in linqResults)
+            {
+                top10Ids.Add(id);
+                if (++count >= 10) break;
+            }
+
+            top10Ids.Consume(_consumer);
+        }
+
+        [Benchmark(Baseline = true)]
         public void LazySelectWhere()
         {
             var top10Ids = new List<int>();
@@ -109,6 +128,16 @@ namespace LinqLazyVsMaterializedBenchmark
         }
 
         [Benchmark]
+        public void StandardLinqSelectWhere()
+        {
+            var linqResults = _source
+                .WhereLazy(x => x.Name == "taro")
+                .SelectLazy(x => x.Id);
+
+            linqResults.Consume(_consumer);
+        }
+
+        [Benchmark(Baseline = true)]
         public void LazySelectWhere()
         {
             var linqResults = _source
