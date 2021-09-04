@@ -13,85 +13,133 @@ using BenchmarkDotNet.Running;
 
 namespace LinqLazyVsMaterializedBenchmark
 {
-class Program
-{
-    static void Main(string[] args)
+    class Program
     {
-        var config = new ManualConfig()
-            .AddJob(Job.ShortRun)
-            .AddExporter(MarkdownExporter.GitHub)
-            .AddDiagnoser(MemoryDiagnoser.Default)
-            .AddLogger(ConsoleLogger.Default)
-            .AddColumnProvider(DefaultColumnProviders.Instance);
-
-        BenchmarkRunner.Run<Benchmark1>(config);
-    }
-}
-
-// 大きいデータに対して LINQ クエリを実行し，最初の 10 件だけ使う場合の Benchmark
-public class Benchmark1
-{
-    private TestData[] _source;
-
-    private readonly Consumer _consumer = new();
-
-    [GlobalSetup]
-    public void Setup()
-    {
-        // 10万件のテストデータを用意
-        _source = GenerateTestData().Take(100000).ToArray();
-    }
-
-    [Benchmark]
-    public void LazySelectWhere()
-    {
-        var top10Ids = new List<int>();
-
-        var linqResults = _source
-            .WhereLazy(x => x.Name == "taro")
-            .SelectLazy(x => x.Id);
-
-        int count = 0;
-        foreach (var id in linqResults)
+        static void Main(string[] args)
         {
-            top10Ids.Add(id);
-            if (++count >= 10) break;
+            var config = new ManualConfig()
+                .AddJob(Job.ShortRun)
+                .AddExporter(MarkdownExporter.GitHub)
+                .AddDiagnoser(MemoryDiagnoser.Default)
+                .AddLogger(ConsoleLogger.Default)
+                .AddColumnProvider(DefaultColumnProviders.Instance);
+
+            BenchmarkRunner.Run<Benchmark1>(config);
+            BenchmarkRunner.Run<Benchmark2>(config);
+        }
+    }
+
+    // 大きいデータに対して LINQ クエリを実行し，最初の 10 件だけ使う場合の Benchmark
+    public class Benchmark1
+    {
+        private TestData[] _source;
+
+        private readonly Consumer _consumer = new();
+
+        [GlobalSetup]
+        public void Setup()
+        {
+            // 10万件のテストデータを用意
+            _source = GenerateTestData().Take(100000).ToArray();
         }
 
-        top10Ids.Consume(_consumer);
-    }
-
-    [Benchmark]
-    public void MaterializedSelectWhere()
-    {
-        var top10Ids = new List<int>();
-
-        var linqResults = _source
-            .WhereToArray(x => x.Name == "taro")
-            .SelectToArray(x => x.Id);
-
-        int count = 0;
-        foreach (var id in linqResults)
+        [Benchmark]
+        public void LazySelectWhere()
         {
-            top10Ids.Add(id);
-            if (++count >= 10) break;
+            var top10Ids = new List<int>();
+
+            var linqResults = _source
+                .WhereLazy(x => x.Name == "taro")
+                .SelectLazy(x => x.Id);
+
+            int count = 0;
+            foreach (var id in linqResults)
+            {
+                top10Ids.Add(id);
+                if (++count >= 10) break;
+            }
+
+            top10Ids.Consume(_consumer);
         }
 
-        top10Ids.Consume(_consumer);
+        [Benchmark]
+        public void MaterializedSelectWhere()
+        {
+            var top10Ids = new List<int>();
+
+            var linqResults = _source
+                .WhereToArray(x => x.Name == "taro")
+                .SelectToArray(x => x.Id);
+
+            int count = 0;
+            foreach (var id in linqResults)
+            {
+                top10Ids.Add(id);
+                if (++count >= 10) break;
+            }
+
+            top10Ids.Consume(_consumer);
+        }
+
+        private static IEnumerable<TestData> GenerateTestData()
+        {
+            Random random = new Random();
+            var names = new[] { "foo", "bar", "hanako", "taro", "jiro", "kyoko" };
+            int id = 0;
+
+            while (true)
+                yield return new TestData(++id, names[random.Next(0, names.Length - 1)]);
+        }
+
+        private record TestData(int Id, string Name);
     }
 
-    private static IEnumerable<TestData> GenerateTestData()
+    // 大きいデータに対して LINQ クエリを実行し，すべてのデータを使う場合の Benchmark
+    public class Benchmark2
     {
-        Random random = new Random();
-        var names = new [] {"foo", "bar", "hanako", "taro", "jiro", "kyoko"};
-        int id = 0;
+        private TestData[] _source;
 
-        while (true)
-            yield return new TestData(++id, names[random.Next(0, names.Length - 1)]);
+        private readonly Consumer _consumer = new();
+
+        [GlobalSetup]
+        public void Setup()
+        {
+            // 10万件のテストデータを用意
+            _source = GenerateTestData().Take(100000).ToArray();
+        }
+
+        [Benchmark]
+        public void LazySelectWhere()
+        {
+            var linqResults = _source
+                .WhereLazy(x => x.Name == "taro")
+                .SelectLazy(x => x.Id);
+
+            linqResults.Consume(_consumer);
+        }
+
+        [Benchmark]
+        public void MaterializedSelectWhere()
+        {
+            var linqResults = _source
+                .WhereToArray(x => x.Name == "taro")
+                .SelectToArray(x => x.Id);
+
+            linqResults.Consume(_consumer);
+        }
+
+        private static IEnumerable<TestData> GenerateTestData()
+        {
+            Random random = new Random();
+            var names = new[] { "foo", "bar", "hanako", "taro", "jiro", "kyoko" };
+            int id = 0;
+
+            while (true)
+                yield return new TestData(++id, names[random.Next(0, names.Length - 1)]);
+        }
+
+        private record TestData(int Id, string Name);
     }
-
-    private record TestData(int Id, string Name);
-}
 
     public static class SimpleLazyEvalLinq
     {
